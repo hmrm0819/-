@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>投球練習データ入力</title>
+<style>
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: #f5f5f5;
+    min-height: 100vh;
+}
+
+/* ===== ヘッダー ===== */
+#header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 48px;
+    background: white;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 700;
+}
+#header h1 {
+    font-size: 17px;
+    color: #333;
+    font-weight: bold;
+}
+
+/* ===== ハンバーガーボタン ===== */
+#menu-btn {
+    position: fixed;
+    top: 4px; left: 10px;
+    width: 40px; height: 40px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    padding: 5px;
+}
+#menu-btn span {
+    display: block;
+    width: 26px; height: 3px;
+    background: #333;
+    border-radius: 2px;
+    transition: all 0.3s;
+}
+#menu-btn.open span:nth-child(1) { transform: translateY(8px) rotate(45deg); }
+#menu-btn.open span:nth-child(2) { opacity: 0; }
+#menu-btn.open span:nth-child(3) { transform: translateY(-8px) rotate(-45deg); }
+
+/* ===== サイドメニュー ===== */
+#side-menu {
+    position: fixed;
+    top: 0; left: -220px;
+    width: 200px; height: 100%;
+    background: white;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.15);
+    z-index: 900;
+    padding-top: 58px;
+    transition: left 0.3s;
+}
+#side-menu.open { left: 0; }
+#side-menu ul { list-style: none; }
+#side-menu ul li a {
+    display: block;
+    padding: 15px 25px;
+    text-decoration: none;
+    color: #333;
+    font-size: 16px;
+    border-bottom: 1px solid #eee;
+    transition: background 0.2s;
+}
+#side-menu ul li a:hover,
+#side-menu ul li a.active {
+    background: #f0f0f0;
+    font-weight: bold;
+}
+
+/* ===== オーバーレイ ===== */
+#overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.3);
+    z-index: 800;
+}
+#overlay.show { display: block; }
+
+/* ===== ページ共通 ===== */
+.page {
+    display: none;
+    padding: 60px 20px 30px 20px; /* 左右20pxでゆったりした余白 */
+    max-width: 720px;              /* 幅を制限して中央寄せ */
+    margin: 0 auto;
+}
+.page.active { display: block; }
+
+/* ===== 名前・日付行 ===== */
+.top-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+.top-row label {
+    font-size: 13px;
+    color: #333;
+    white-space: nowrap;
+}
+.top-row input[type="text"],
+.top-row input[type="date"] {
+    flex: 1;
+    padding: 6px 9px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+    min-width: 0;
+}
+.today-btn {
+    padding: 6px 10px;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+}
+.today-btn:hover { background: #f0f0f0; }
+
+/* ===== メインエリア（左：ゾーン、右：球種＋球速＋ボタン） ===== */
+.main-area {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 14px;
+}
+
+/* ===== 左：ストライクゾーン ===== */
+.zone-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+}
+.zone-label {
+    font-size: 11px;
+    color: #555;
+}
+#strike-zone {
+    width: 275px;   /* コンパクトなサイズ */
+    height: 275px;
+    border: 2px solid #333;
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    cursor: crosshair;
+    background: white;
+}
+.zone-cell { border: 1px solid #aaa; }
+.center    { background-color: #c8e6fa; }
+.pitch-marker {
+    width: 8px; height: 8px;
+    background: red;
+    border-radius: 50%;
+    position: absolute;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    border: 1px solid darkred;
+}
+#result-display {
+    font-size: 12px;
+    font-weight: bold;
+    min-height: 18px;
+}
+.result-strike { color: #1a7abf; }
+.result-ball   { color: #cc3300; }
+
+/* ===== 右：球種＋球速＋ボタン ===== */
+.right-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+.right-label {
+    font-size: 11px;
+    color: #555;
+    margin-bottom: 3px;
+}
+
+/* 球種グリッド 3×3 */
+.pitch-type-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+}
+.pitch-btn {
+    height: 45px;          /* 半分程度のコンパクトな高さ */
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background: white;
+    cursor: pointer;
+    font-size: 13px;
+    text-align: center;
+    transition: all 0.2s;
+    padding: 0 2px;
+    line-height: 1;
+}
+.pitch-btn:hover { background: #f0f0f0; }
+.pitch-btn.selected {
+    background: #333;
+    color: white;
+    border-color: #333;
+}
+
+/* 球速 */
+.speed-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.speed-row label {
+    font-size: 13px;
+    color: #333;
+    white-space: nowrap;
+}
+.speed-row input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+    min-width: 0;
+}
+
+/* 保存・投球終了ボタン（球速ラベル分だけ左をあける） */
+.action-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    /* 球速ラベル（約32px）＋gap（8px）分だけ右寄せして幅を揃える */
+    /* padding-left: 40px; */
+}
+.save-btn {
+    width: 100%;
+    height: 45px;          /* コンパクトな高さ */
+    border: none;
+    border-radius: 5px;
+    background: #333;
+    color: white;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.save-btn:hover { background: #555; }
+
+.end-btn {
+    width: 100%;
+    height: 45px;          /* コンパクトな高さ */
+    border: 1px solid #999;
+    border-radius: 5px;
+    background: white;
+    color: #333;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.end-btn:hover { background: #f0f0f0; }
+
+#sending-msg {
+    display: none;
+    text-align: center;
+    color: #888;
+    font-size: 13px;
+}
+
+/* ===== 成績エリア ===== */
+.stats-box {
+    background: white;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+}
+.stats-box h3 {
+    font-size: 13px;
+    margin-bottom: 7px;
+    color: #333;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+.stats-box p {
+    font-size: 12px;
+    line-height: 1.8;
+    color: #444;
+}
+hr {
+    border: none;
+    border-top: 1px solid #eee;
+    margin: 7px 0;
+}
+
+/* ===== 工事中 ===== */
+.under-construction {
+    text-align: center;
+    padding: 60px 20px;
+    color: #888;
+    font-size: 16px;
+}
+
+</style>
+</head>
+<body>
+
+<!-- ヘッダー -->
+<div id="header">
+    <h1>投球データ入力</h1>
+</div>
+
+<!-- ハンバーガーボタン -->
+<button id="menu-btn" onclick="toggleMenu()">
+    <span></span><span></span><span></span>
+</button>
+
+<!-- サイドメニュー -->
+<nav id="side-menu">
+    <ul>
+        <li><a href="#" class="active" onclick="return showPage('input-page', this)">入力</a></li>
+        <li><a href="#" onclick="return showPage('history-page', this)">投球内容</a></li>
+        <li><a href="#" onclick="return showPage('report-page', this)">月間レポート</a></li>
+    </ul>
+</nav>
+<div id="overlay" onclick="toggleMenu()"></div>
+
+<!-- ===== 入力ページ ===== -->
+<div id="input-page" class="page active">
+
+    <!-- 名前・日付 -->
+    <div class="top-row">
+        <label>名前</label>
+        <input type="text" id="pitcher" placeholder="投手名">
+        <label>日付</label>
+        <input type="date" id="date">
+        <button class="today-btn" onclick="setToday()">今日</button>
+    </div>
+
+    <!-- メインエリア -->
+    <div class="main-area">
+
+        <!-- 左：ストライクゾーン -->
+        <div class="zone-wrap">
+            <div class="zone-label">コース（クリックして入力）</div>
+            <div id="strike-zone"></div>
+            <div id="result-display">　</div>
+        </div>
+
+        <!-- 右：球種＋球速＋ボタン -->
+        <div class="right-area">
+
+            <div>
+                <div class="right-label">球種</div>
+                <div class="pitch-type-grid">
+                    <button class="pitch-btn" onclick="selectPitch(this,'ストレート')">ストレート</button>
+                    <button class="pitch-btn" onclick="selectPitch(this,'スライダー')">スライダー</button>
+                    <button class="pitch-btn" onclick="selectPitch(this,'カーブ')">カーブ</button>
+                    <button class="pitch-btn" onclick="selectPitch(this,'カット')">カット</button>
+                    <button class="pitch-btn" onclick="selectPitch(this,'フォーク')">フォーク</button>
+                    <button class="pitch-btn" onclick="selectPitch(this,'チェンジ')">チェンジ</button>
+                    <button class="pitch-btn" onclick="selectPitch(this,'シンカー')">シンカー</button>
+                    <button class="pitch-btn" onclick="selectPitch(this,'ツーシーム')">ツーシーム</button>
+                    <button class="pitch-btn" onclick="selectPitch(this,'スローボール')">スローボール</button>
+                </div>
+            </div>
+
+            <!-- 球速 -->
+            <div class="speed-row">
+                <label id="speed-label">球速</label>
+                <input type="number" id="speed" placeholder="km/h（省略可）">
+            </div>
+
+            <!-- 記録を保存・投球終了（球速テキストボックスと同じ幅） -->
+            <div class="action-btns">
+                <button class="save-btn" onclick="savePitch()">記録を保存</button>
+                <button class="end-btn"  onclick="endSession()">投球終了</button>
+            </div>
+
+            <div id="sending-msg">⏳ 保存中...</div>
+
+        </div>
+    </div>
+
+    <!-- 成績 -->
+    <div class="stats-box">
+        <h3>全体成績</h3>
+        <div id="overallStats">まだデータがありません</div>
+    </div>
+    <div class="stats-box">
+        <h3>球種別成績</h3>
+        <div id="stats">まだデータがありません</div>
+    </div>
+
+</div>
+
+<!-- ===== 投球内容ページ ===== -->
+<div id="history-page" class="page">
+
+    <!-- 名前・日付の絞り込み -->
+    <div class="top-row">
+        <label>名前</label>
+        <select id="h-pitcher">
+            <option value="">-- 選択 --</option>
+        </select>
+        <label>日付</label>
+        <input type="date" id="h-date">
+        <button class="today-btn" onclick="setTodayHistory()">今日</button>
+        <button id="search-btn" onclick="searchHistory()">表示</button>
+    </div>
+
+    <!-- 読み込み中・エラーメッセージ -->
+    <div id="history-msg">名前と日付を選んで「表示」を押してください</div>
+
+    <!-- メインエリア（データ取得後に表示） -->
+    <div id="history-main" style="display:none;">
+
+        <!-- 左：球種ボタン（全体＋使用した球種が動的に入る） -->
+        <div id="history-type-btns"></div>
+
+        <!-- 中央：ゾーン分布 -->
+        <div id="history-zone-wrap">
+            <div id="history-zone"></div>
+        </div>
+
+        <!-- 右：成績 -->
+        <div id="history-stats">
+            <div class="h-stat-row">
+                <span class="h-stat-label">球数</span>
+                <span class="h-stat-value" id="hs-total">-</span>
+            </div>
+            <div class="h-stat-row">
+                <span class="h-stat-label">平均球速</span>
+                <span class="h-stat-value" id="hs-avg">-</span>
+            </div>
+            <div class="h-stat-row">
+                <span class="h-stat-label">平均球速(外)</span>
+                <span class="h-stat-value" id="hs-avg-out">-</span>
+            </div>
+            <div class="h-stat-row">
+                <span class="h-stat-label">最速</span>
+                <span class="h-stat-value" id="hs-max">-</span>
+            </div>
+            <div class="h-stat-row">
+                <span class="h-stat-label">最速(スト)</span>
+                <span class="h-stat-value" id="hs-max-str">-</span>
+            </div>
+        </div>
+
+    </div><!-- /history-main -->
+
+</div>
+
+<!-- ===== 月間レポートページ ===== -->
+<div id="report-page" class="page">
+    <h2 style="font-size:17px;margin-bottom:12px;color:#333;">月間レポート</h2>
+    <div class="under-construction">🚧 準備中です 🚧<br><br>先輩と内容をつめてから作成します</div>
+</div>
+
+<script>
+
+// =============================================
+// ★ここを自分のGASのURLに書き換えてください★
+// =============================================
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzZKjoOUKcXAJ1kNCXgiDvxHj5Nwugbk00vSpW8lGow8bvrpstPMCKZtsyl4UzWJ2zE/exec";
+
+// ===== 変数 =====
+let pitchData         = [];   // 今日の投球データをまとめて入れる箱
+let currentZone       = null; // クリックしたゾーン番号（1〜25）
+let currentResult     = null; // "S"（ストライク）or "B"（ボール）
+let selectedPitchType = null; // 選んだ球種の名前
+let marker            = null; // ゾーン上の赤丸（DOM要素）
+
+
+// =============================================
+// ハンバーガーメニューの開閉
+// =============================================
+function toggleMenu() {
+    document.getElementById("menu-btn").classList.toggle("open");
+    document.getElementById("side-menu").classList.toggle("open");
+    document.getElementById("overlay").classList.toggle("show");
+}
+
+// ページ切り替え
+function showPage(pageId, link) {
+    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+    document.getElementById(pageId).classList.add("active");
+    document.querySelectorAll("#side-menu a").forEach(a => a.classList.remove("active"));
+    link.classList.add("active");
+    toggleMenu();
+
+    // 投球内容ページを開いたときは投手名一覧を自動取得する
+    if (pageId === "history-page") {
+        loadPitchers();
+    }
+
+    return false; // リンクのデフォルト動作（ページ先頭へ飛ぶ）をキャンセル
+}
+
+
+// =============================================
+// 今日ボタン：今日の日付を日付欄に自動入力する
+// =============================================
+function setToday() {
+    const t  = new Date();
+    const yy = t.getFullYear();
+    const mm = String(t.getMonth() + 1).padStart(2, "0"); // 月は0始まりなので+1する
+    const dd = String(t.getDate()).padStart(2, "0");
+    document.getElementById("date").value = `${yy}-${mm}-${dd}`;
+}
+
+
+// =============================================
+// 球種ボタン：押したボタンを選択状態にする
+// =============================================
+function selectPitch(btn, type) {
+    document.querySelectorAll(".pitch-btn").forEach(b => b.classList.remove("selected"));
+    btn.classList.add("selected");
+    selectedPitchType = type;
+}
+
+
+// =============================================
+// ストライクゾーン生成（5×5 = 25マス）
+// =============================================
+const zone = document.getElementById("strike-zone");
+
+for (let row = 0; row < 5; row++) {
+    for (let col = 0; col < 5; col++) {
+        const cell = document.createElement("div");
+        cell.classList.add("zone-cell");
+        // row=1〜3、col=1〜3 の真ん中9マスが青色のストライクゾーン
+        if (row >= 1 && row <= 3 && col >= 1 && col <= 3) {
+            cell.classList.add("center");
+        }
+        zone.appendChild(cell);
+    }
+}
+
+
+// =============================================
+// ゾーンクリック → ストライク/ボール自動判定
+// =============================================
+zone.addEventListener("click", function(e) {
+
+    const rect = zone.getBoundingClientRect();     // ゾーンの画面上の位置・サイズ
+    const x    = e.clientX - rect.left;            // ゾーン内でのクリックX座標
+    const y    = e.clientY - rect.top;             // ゾーン内でのクリックY座標
+    const cw   = rect.width  / 5;                  // 1マスの幅
+    const ch   = rect.height / 5;                  // 1マスの高さ
+
+    const col = Math.floor(x / cw);  // 左から何列目か（0〜4）
+    const row = Math.floor(y / ch);  // 上から何行目か（0〜4）
+
+    currentZone = row * 5 + col + 1; // ゾーン番号（1〜25）に変換
+
+    // 真ん中3×3ならストライク、それ以外はボール
+    if (row >= 1 && row <= 3 && col >= 1 && col <= 3) {
+        currentResult = "S";
+        document.getElementById("result-display").innerHTML =
+            '<span class="result-strike">● ストライク</span>';
+    } else {
+        currentResult = "B";
+        document.getElementById("result-display").innerHTML =
+            '<span class="result-ball">● ボール</span>';
+    }
+
+    // 古いマーカーを消して新しいマーカーを表示
+    if (marker) marker.remove();
+    marker = document.createElement("div");
+    marker.className  = "pitch-marker";
+    marker.style.left = x + "px";
+    marker.style.top  = y + "px";
+    zone.appendChild(marker);
+});
+
+
+// =============================================
+// 記録を保存する
+// =============================================
+function savePitch() {
+
+    // 未入力チェック：どれか1つでも空なら警告を出して処理を止める
+    if (!document.getElementById("pitcher").value) { alert("投手名を入力してください"); return; }
+    if (!document.getElementById("date").value)    { alert("日付を入力してください");   return; }
+    if (!selectedPitchType)                         { alert("球種を選択してください");   return; }
+    if (!currentZone)                               { alert("コースをクリックしてください"); return; }
+
+    const speedValue = document.getElementById("speed").value;
+
+    // 1球分のデータをまとめる（オブジェクト＝複数の情報をひとまとめにしたもの）
+    const pitch = {
+        pitcher:   document.getElementById("pitcher").value,
+        date:      document.getElementById("date").value,
+        pitchType: selectedPitchType,
+        speed:     speedValue === "" ? "" : Number(speedValue),
+        result:    currentResult,  // "S"（ストライク）or "B"（ボール）
+        zone:      currentZone
+    };
+
+    pitchData.push(pitch); // 配列の末尾に追加する（DBには送らない）
+    updateStats();          // 画面の成績表示を更新する
+
+    // コース・球速・判定・球種をリセット（名前・日付は次の球でも使うので残す）
+    document.getElementById("speed").value = "";
+    currentZone   = null;
+    currentResult = null;
+    selectedPitchType = null;
+    // 球種ボタンの選択状態（黒塗り）を全て解除する
+    document.querySelectorAll(".pitch-btn").forEach(b => b.classList.remove("selected"));
+    if (marker) marker.remove();
+    marker = null;
+    document.getElementById("result-display").innerHTML = "　";
+}
+
+
+// =============================================
+// 投球終了
+// =============================================
+async function endSession() {
+
+    // データが1球もない場合はそのままリセットして終わる
+    if (pitchData.length === 0) {
+        resetAll();
+        return;
+    }
+
+    // 確認ダイアログ
+    if (!confirm(`${pitchData.length}球のデータをDBに保存して終了しますか？`)) return;
+
+    // ── DB送信 ────────────────────────────
+
+    document.getElementById("sending-msg").style.display = "block";
+
+    try {
+        const res = await fetch(GAS_URL, {
+            method:  "POST",
+            headers: { "Content-Type": "text/plain" }, // GAS(no-cors不使用)ではtext/plainが確実
+            body:    JSON.stringify({ pitches: pitchData })
+        });
+
+        // GASからのレスポンスを受け取る
+        const json = await res.json();
+
+        // GAS側が { status: "success" } を返さなければエラー扱い
+        if (json.status !== "success") {
+            throw new Error(json.message || "GASからエラーが返されました");
+        }
+
+        // ── 全球送信成功 ──
+        document.getElementById("sending-msg").style.display = "none";
+        alert(`${pitchData.length}球のデータを保存しました！`);
+        resetAll(); // 成功したときだけリセットする
+
+    } catch (err) {
+        document.getElementById("sending-msg").style.display = "none";
+        alert(
+            "DB保存中にエラーが発生しました。\n" +
+            "データはまだ残っています。\n" +
+            "Wi-Fi環境を確認してから再度「投球終了」を押してください。\n\n" +
+            "エラー詳細：" + err
+        );
+    }
+}
+
+
+// =============================================
+// 画面・変数を全部初期状態に戻す
+// =============================================
+function resetAll() {
+
+    // テキストボックスを空にする
+    document.getElementById("pitcher").value = "";
+    document.getElementById("date").value    = "";
+    document.getElementById("speed").value   = "";
+
+    // 球種ボタンの選択を解除する
+    document.querySelectorAll(".pitch-btn").forEach(b => b.classList.remove("selected"));
+
+    // コース・判定をリセット
+    currentZone   = null;
+    currentResult = null;
+    if (marker) marker.remove();
+    marker = null;
+    document.getElementById("result-display").innerHTML = "　";
+
+    // 変数をリセット
+    pitchData         = [];
+    selectedPitchType = null;
+
+    // 成績表示をリセット
+    document.getElementById("overallStats").innerHTML = "まだデータがありません";
+    document.getElementById("stats").innerHTML        = "まだデータがありません";
+}
+
+
+// =============================================
+// 成績を計算して画面に表示する
+// =============================================
+function updateStats() {
+
+    let stats   = {};  // 球種ごとの成績をまとめるオブジェクト
+    let total   = 0;   // 総投球数
+    let strikes = 0;   // 総ストライク数
+
+    pitchData.forEach(p => {
+        total++;
+        if (p.result === "S") strikes++;
+
+        // 球種がまだ登録されていない場合は初期値をセット
+        if (!stats[p.pitchType]) {
+            stats[p.pitchType] = { total:0, strike:0, speedSum:0, speedCount:0, maxSpeed:0 };
+        }
+        const s = stats[p.pitchType];
+        s.total++;
+        if (p.result === "S") s.strike++;
+        if (p.speed !== "" && p.speed !== null) {
+            s.speedSum += p.speed;
+            s.speedCount++;
+            if (p.speed > s.maxSpeed) s.maxSpeed = p.speed;
+        }
+    });
+
+    // 全体ストライク率
+    const rate = total > 0 ? ((strikes / total) * 100).toFixed(1) : 0;
+    document.getElementById("overallStats").innerHTML =
+        `<p>総投球数：${total}球<br>全体ストライク率：${rate}%</p>`;
+
+    // 球種別成績
+    let html = "";
+    for (let type in stats) {
+        const d  = stats[type];
+        const sr = ((d.strike / d.total) * 100).toFixed(1);
+        const av = d.speedCount > 0 ? (d.speedSum / d.speedCount).toFixed(1) : "-";
+        const mx = d.speedCount > 0 ? d.maxSpeed : "-";
+        html += `
+            <p>
+                <strong>${type}</strong><br>
+                球数：${d.total}球　ストライク率：${sr}%<br>
+                平均球速：${av} km/h　最速：${mx} km/h
+            </p><hr>`;
+    }
+    document.getElementById("stats").innerHTML = html || "まだデータがありません";
+}
+
+// =============================================
+// 投球内容ページ用の変数
+// =============================================
+let historyData        = []; // スプレッドシートから取得した全データ
+let historyFiltered    = []; // 球種で絞り込んだデータ
+let selectedHistoryType = "全体"; // 現在選択中の球種
+
+
+// =============================================
+// 投球内容ページを開いたとき：投手名一覧を取得する
+// =============================================
+async function loadPitchers() {
+
+    const select = document.getElementById("h-pitcher");
+    select.innerHTML = '<option value="">読み込み中...</option>';
+
+    try {
+        // GASに投手名一覧をリクエストする
+        // ?action=getPitchers はGAS側の doGet に渡すパラメータ
+        const res  = await fetch(`${GAS_URL}?action=getPitchers`);
+        const json = await res.json();
+
+        if (json.status !== "success") throw new Error("取得失敗");
+
+        // プルダウンを作り直す
+        select.innerHTML = '<option value="">-- 選択 --</option>';
+        json.data.forEach(name => {
+            const opt   = document.createElement("option");
+            opt.value   = name;
+            opt.textContent = name;
+            select.appendChild(opt);
+        });
+
+    } catch (err) {
+        select.innerHTML = '<option value="">取得エラー</option>';
+        console.error("投手名取得エラー:", err);
+    }
+}
+
+
+// =============================================
+// 今日ボタン（投球内容ページ用）
+// =============================================
+function setTodayHistory() {
+    const t  = new Date();
+    const yy = t.getFullYear();
+    const mm = String(t.getMonth() + 1).padStart(2, "0");
+    const dd = String(t.getDate()).padStart(2, "0");
+    document.getElementById("h-date").value = `${yy}-${mm}-${dd}`;
+}
+
+
+// =============================================
+// 「表示」ボタン：名前と日付でデータを取得して表示する
+// =============================================
+async function searchHistory() {
+
+    const pitcher = document.getElementById("h-pitcher").value;
+    const date    = document.getElementById("h-date").value;
+
+    if (!pitcher) { alert("名前を選択してください"); return; }
+    if (!date)    { alert("日付を選択してください"); return; }
+
+    document.getElementById("history-msg").textContent  = "⏳ 読み込み中...";
+    document.getElementById("history-main").style.display = "none";
+
+    try {
+        // GASにデータをリクエストする
+        // 日付はスプレッドシートの形式に合わせてそのまま渡す
+        const url  = `${GAS_URL}?action=getData&pitcher=${encodeURIComponent(pitcher)}&date=${encodeURIComponent(date)}`;
+        const res  = await fetch(url);
+        const json = await res.json();
+
+        if (json.status !== "success") throw new Error("取得失敗");
+
+        historyData = json.data; // 取得したデータを保存
+
+        if (historyData.length === 0) {
+            document.getElementById("history-msg").textContent = "この日のデータはありません";
+            return;
+        }
+
+        // データが取得できたらメインエリアを表示する
+        document.getElementById("history-msg").textContent  = "";
+        document.getElementById("history-main").style.display = "flex";
+
+        // ゾーンを初期化（前回の表示を消す）
+        buildHistoryZone();
+
+        // 球種ボタンを作る（全体＋使用した球種）
+        buildTypeBtns();
+
+        // 「全体」ボタンを初期選択にして成績を表示する
+        selectedHistoryType = "全体";
+        updateHistoryView();
+
+    } catch (err) {
+        document.getElementById("history-msg").textContent = "データ取得に失敗しました。Wi-Fiを確認してください。";
+        console.error("データ取得エラー:", err);
+    }
+}
+
+
+// =============================================
+// ゾーン（5×5マス）を初期状態で作る
+// ─────────────────────────────────────────
+// 投球内容ページ用のゾーン。
+// マスに投球数の数字を表示する。
+// =============================================
+function buildHistoryZone() {
+
+    const hz = document.getElementById("history-zone");
+    hz.innerHTML = ""; // 前回の内容を消す
+
+    // 5×5 = 25マスを作る
+    for (let row = 0; row < 5; row++) {
+        for (let col = 0; col < 5; col++) {
+            const cell = document.createElement("div");
+            cell.classList.add("h-zone-cell");
+
+            // 真ん中3×3はストライクゾーンなので青色
+            if (row >= 1 && row <= 3 && col >= 1 && col <= 3) {
+                cell.classList.add("center");
+            }
+
+            // ゾーン番号（1〜25）をdata属性として持たせる
+            // → あとで数字を書き込むときに使う
+            cell.dataset.zone = String(row * 5 + col + 1);
+            hz.appendChild(cell);
+        }
+    }
+}
+
+
+// =============================================
+// 球種ボタンを動的に作る
+// =============================================
+function buildTypeBtns() {
+
+    const container = document.getElementById("history-type-btns");
+    container.innerHTML = ""; // 前回のボタンを消す
+
+    // 使われた球種を重複なしで取り出す
+    // Set は重複を自動で除いてくれる便利な仕組み
+    const types = ["全体", ...new Set(historyData.map(p => p.pitchType))];
+
+    types.forEach(type => {
+        const btn       = document.createElement("button");
+        btn.className   = "h-type-btn";
+        btn.textContent = type;
+        btn.onclick     = () => {
+            selectedHistoryType = type;
+            // 全ボタンの選択を解除してから押したものだけ選択状態にする
+            document.querySelectorAll(".h-type-btn").forEach(b => b.classList.remove("selected"));
+            btn.classList.add("selected");
+            updateHistoryView(); // ゾーンと成績を更新する
+        };
+        container.appendChild(btn);
+    });
+
+    // 最初のボタン（全体）を選択状態にする
+    container.firstChild.classList.add("selected");
+}
+
+
+// =============================================
+// ゾーンの数字と成績を更新する
+// =============================================
+function updateHistoryView() {
+
+    // 選択した球種でデータを絞り込む
+    historyFiltered = selectedHistoryType === "全体"
+        ? historyData                                              // 全体なら全部
+        : historyData.filter(p => p.pitchType === selectedHistoryType); // 球種で絞り込む
+
+    // ── ゾーンの数字を更新する ────────────────
+    // マスごとに何球投げたかを数える
+    // counts[ゾーン番号] = 投球数 という形で管理する
+    const counts = {};
+    historyFiltered.forEach(p => {
+        const z = String(p.zone);
+        counts[z] = (counts[z] || 0) + 1; // すでにあれば+1、なければ1をセット
+    });
+
+    // 全マスの数字を更新する
+    document.querySelectorAll(".h-zone-cell").forEach(cell => {
+        const z   = cell.dataset.zone;
+        const cnt = counts[z] || 0;
+        cell.textContent = cnt > 0 ? cnt : "";        // 0球のマスは空白
+        if (cnt === 0) {
+            cell.classList.add("empty");
+        } else {
+            cell.classList.remove("empty");
+        }
+    });
+
+    // ── 成績を計算して表示する ────────────────
+    const total = historyFiltered.length;
+
+    // 球速データだけ取り出す（空白・未入力を除く）
+    const allSpeeds = historyFiltered
+        .map(p => Number(p.speed))
+        .filter(s => !isNaN(s) && s > 0);
+
+    // ボール（ストライクゾーン外）だけの球速
+    const outSpeeds = historyFiltered
+        .filter(p => p.result === "B")
+        .map(p => Number(p.speed))
+        .filter(s => !isNaN(s) && s > 0);
+
+    // ストライク（ストライクゾーン内）だけの球速
+    const strSpeeds = historyFiltered
+        .filter(p => p.result === "S")
+        .map(p => Number(p.speed))
+        .filter(s => !isNaN(s) && s > 0);
+
+    // 平均を計算するヘルパー関数（配列が空なら"-"を返す）
+    const avg = arr => arr.length > 0
+        ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) + " km/h"
+        : "-";
+
+    // 最大値を計算するヘルパー関数
+    const max = arr => arr.length > 0
+        ? Math.max(...arr) + " km/h"
+        : "-";
+
+    // 画面に数値を表示する
+    document.getElementById("hs-total").textContent   = total + " 球";
+    document.getElementById("hs-avg").textContent     = avg(allSpeeds);
+    document.getElementById("hs-avg-out").textContent = avg(outSpeeds);
+    document.getElementById("hs-max").textContent     = max(allSpeeds);
+    document.getElementById("hs-max-str").textContent = max(strSpeeds);
+}
+
+</script>
+</body>
+</html>
